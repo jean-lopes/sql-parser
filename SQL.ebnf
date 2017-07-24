@@ -1,0 +1,165 @@
+statement-list = statenment, { ';', statement };
+
+statement = create-table-statement
+          | delete-statement-searched
+          | drop-table-statement
+          | insert-statement
+          | select-statement
+          | update-statement-searched
+          ;
+
+update-value = expression | 'NULL';
+
+update-column = column-identifier, '=', update-value;
+
+update-column-list = update-column, { ',', update-column };
+
+update-statement-searched = 'UPDATE', table-name
+                          , 'SET', update-column-list
+                          , [ 'WHERE', search-condition ]
+                          ;
+
+insert-statement = 'INSERT', 'INTO', table-name
+                 , [ '(', column-identifier, { ',', column-identifier } , ')' ],
+                 , 'VALUES', '(', insert-value, { ',', insert-value } ')'
+                 ;
+
+delete-statement-searched = 'DELETE', 'FROM', table-name
+                          , [ 'WHERE', search-condition ];
+
+drop-table-statement = 'DROP', 'TABLE', base-table-name;
+
+column-and-type = column-identifier, data-type;
+
+create-table-statement = 'CREATE', 'TABLE', base-table-name, '(',
+                             column-and-type, { ',', column-and-type }
+                         ')';
+
+select-statement = 'SELECT', [ 'DISTINCT' ], select-list,
+                   'FROM' table-reference-list,
+                   ['WHERE' search-condition],
+                   [order-by-clause];
+
+boolean-factor = [ 'not' ], boolean-primary;
+
+boolean-primary = comparison-predicate | '(', search-condition, ')';
+
+boolean-term = boolean-factor, [ 'and', boolean-term ];
+
+search-condition = boolean-term, [ 'or', search-condition ];
+
+comparison-predicate = expression, comparison-operator, expression;
+
+insert-value = dynamic-parameter | literal | 'null' | 'user' ;
+
+(* select-list cannot contain parameters *)
+select-list = '*'
+            | select-sublist, { ',', select-sublist }
+            ;
+
+select-sublist = expression;
+
+primary = column-name
+        | dynamic-parameter
+        | literal
+        | '(', expression, ')'
+        ;
+
+multiplication-operator = '*' | '/' ;
+
+term = factor, [ term-op ];
+
+term-op = multiplication-operator, term;
+    
+factor = [ sign ], primary;
+
+expression = term, [ expression-op ];
+
+expression-op = sign, expression;
+
+data-type = 'char', '(', unsigned-integer, ')'
+          | 'varchar', '(', unsigned-integer, ')'
+          ;
+
+order-by-clause = 'order', 'by', sort-specification, { ',', sort-specification };
+
+sort-specification = { unsigned-integer | column-name }, [ sort-ordering ];
+
+sort-ordering = 'asc' | 'desc' ;
+
+column-name = [ table-name, '.' ], column-identifier;
+
+base-table-identifier = user-defined-name;
+
+base-table-name = base-table-identifier;
+
+column-identifier = user-defined-name;
+
+table-identifier = user-defined-name;
+
+table-name = table-identifier;
+
+table-reference = table-name;
+
+table-reference-list = table-reference,  { ',', table-reference };
+
+user-defined-name = letter, { digit | letter | '_' };
+
+unsigned-integer = digit, { digit };
+
+character = ? any character ?;
+
+letter = lower-case-letter | upper-case-letter;
+
+lower-case-letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' 
+                  | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' 
+                  | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' ;
+
+upper-case-letter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' 
+                  | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T'
+                  | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' ;
+
+digit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' ;
+
+comparison-operator = '<' | '>' | '<=' | '>=' | '=' | '<>' ;
+
+dynamic-parameter = '?' ;
+
+reserved-keyword
+    = 'ABSOLUTE' | 'IS' | 'ACTION' | 'ISOLATION' | 'ADA' | 'JOIN' | 'ADD' 
+    | 'KEY' | 'ALL' | 'LANGUAGE' | 'ALLOCATE' | 'LAST' | 'ALTER' | 'LEADING' 
+    | 'AND' | 'LEFT' | 'ANY' | 'LEVEL' | 'ARE' | 'LIKE' | 'AS' | 'LOCAL' 
+    | 'ASC' | 'LOWER' | 'ASSERTION' | 'MATCH' | 'AT' | 'MAX' | 'AUTHORIZATION' 
+    | 'MIN' | 'AVG' | 'MINUTE' | 'BEGIN' | 'MODULE' | 'BETWEEN' | 'MONTH' 
+    | 'BIT' | 'NAMES' | 'BIT_LENGTH' | 'NATIONAL' | 'BOTH' | 'NATURAL' | 'BY' 
+    | 'NCHAR' | 'CASCADE' | 'NEXT' | 'CASCADED' | 'NO' | 'CASE' | 'NONE' 
+    | 'CAST' | 'NOT' | 'CATALOG' | 'NULL' | 'CHAR' | 'NULLIF' | 'CHAR_LENGTH' 
+    | 'NUMERIC' | 'CHARACTER' | 'OCTET_LENGTH' | 'CHARACTER_LENGTH' | 'OF' 
+    | 'CHECK' | 'ON' | 'CLOSE' | 'ONLY' | 'COALESCE' | 'OPEN' | 'COLLATE' 
+    | 'OPTION' | 'COLLATION' | 'OR' | 'COLUMN' | 'ORDER' | 'COMMIT' | 'OUTER' 
+    | 'CONNECT' | 'OUTPUT' | 'CONNECTION' | 'OVERLAPS' | 'CONSTRAINT' | 'PAD' 
+    | 'CONSTRAINTS' | 'PARTIAL' | 'CONTINUE' | 'PASCAL' | 'CONVERT' | 'POSITION' 
+    | 'CORRESPONDING' | 'PRECISION' | 'COUNT' | 'PREPARE' | 'CREATE' 
+    | 'PRESERVE' | 'CROSS' | 'PRIMARY' | 'CURRENT' | 'PRIOR' | 'CURRENT_DATE' 
+    | 'PRIVILEGES' | 'CURRENT_TIME' | 'PROCEDURE' | 'CURRENT_TIMESTAMP' 
+    | 'PUBLIC' | 'CURRENT_USER' | 'READ' | 'CURSOR' | 'REAL' | 'DATE' 
+    | 'REFERENCES' | 'DAY' | 'RELATIVE' | 'DEALLOCATE' | 'RESTRICT' | 'DEC' 
+    | 'REVOKE' | 'DECIMAL' | 'RIGHT' | 'DECLARE' | 'ROLLBACK' | 'DEFAULT' 
+    | 'ROWS' | 'DEFERRABLE' | 'SCHEMA' | 'DEFERRED' | 'SCROLL' | 'DELETE' 
+    | 'SECOND' | 'DESC' | 'SECTION' | 'DESCRIBE' | 'SELECT' | 'DESCRIPTOR' 
+    | 'SESSION' | 'DIAGNOSTICS' | 'SESSION_USER' | 'DISCONNECT' | 'SET' 
+    | 'DISTINCT' | 'SIZE' | 'DOMAIN' | 'SMALLINT' | 'DOUBLE' | 'SOME' | 'DROP' 
+    | 'SPACE' | 'ELSE' | 'SQL' | 'END' | 'SQLCA' | 'END-EXEC' | 'SQLCODE'
+    | 'ESCAPE' | 'SQLERROR' | 'EXCEPT' | 'SQLSTATE' | 'EXCEPTION' | 'SQLWARNING' 
+    | 'EXEC' | 'SUBSTRING' | 'EXECUTE' | 'SUM' | 'EXISTS' | 'SYSTEM_USER' 
+    | 'EXTERNAL' | 'TABLE' | 'EXTRACT' | 'TEMPORARY' | 'FALSE' | 'THEN' 
+    | 'FETCH' | 'TIME' | 'FIRST' | 'TIMESTAMP' | 'FLOAT' | 'TIMEZONE_HOUR' 
+    | 'FOR' | 'TIMEZONE_MINUTE' | 'FOREIGN' | 'TO' | 'FORTRAN' | 'TRAILING' 
+    | 'FOUND' | 'TRANSACTION' | 'FROM' | 'TRANSLATE' | 'FULL' | 'TRANSLATION' 
+    | 'GET' | 'TRIM' | 'GLOBAL' | 'TRUE' | 'GO' | 'UNION' | 'GOTO' | 'UNIQUE' 
+    | 'GRANT' | 'UNKNOWN' | 'GROUP' | 'UPDATE' | 'HAVING' | 'UPPER' | 'HOUR' 
+    | 'USAGE' | 'IDENTITY' | 'USER' | 'IMMEDIATE' | 'USING' | 'IN' | 'VALUE' 
+    | 'INCLUDE' | 'VALUES' | 'INDEX' | 'VARCHAR' | 'INDICATOR' | 'VARYING' 
+    | 'INITIALLY' | 'VIEW' | 'INNER' | 'WHEN' | 'INPUT' | 'WHENEVER' 
+    | 'INSENSITIVE' | 'WHERE' | 'INSERT' | 'WITH' | 'INT' | 'WORK' | 'INTEGER' 
+    | 'WRITE' | 'INTERSECT' | 'YEAR' | 'INTERVAL' | 'ZONE' | 'INTO' ;    
