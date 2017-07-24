@@ -6,7 +6,7 @@
 --
 -- A SQL parser implementation of the minimum required for a ODBC driver.
 --
--- | /EBNF:/
+-- /EBNF:/
 --     
 -- > 
 -- > character = ? any character ?;

@@ -36,7 +36,7 @@ Right (StatementList (SelectStatement (Select Nothing SelectAll (TableReferenceL
 
 ### Printing the AST in a more readable way
 ```
-*Language.Sql> ast "select * from test"
+>>> *Language.Sql> ast "select * from test"
 statement-list
 |
 `- statement
