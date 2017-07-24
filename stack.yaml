@@ -66,4 +66,4 @@ extra-package-dbs: []
 # compiler-check: newer-minor
 
 ghc-options:
-  "*": -Wall -Werror
+  sql-parser: -Wall -Werror

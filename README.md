@@ -2,7 +2,7 @@
 Parser for the minimum SQL syntax that an ODBC driver must support.
 
 ## Requirements
-1. [Haskell Stack](www.haskellstack.org)
+1. [Haskell Stack](http://www.haskellstack.org)
 2. [git](https://git-scm.com/) *optional*
 
 ## Download the source files
