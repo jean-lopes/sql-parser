@@ -1,0 +1,399 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><a name="line-2"></a><span class="hs-comment">-- Module      : Language.Sql</span><span>
+</span><a name="line-3"></a><span class="hs-comment">-- Copyright   : Jean Carlo Giambastiani Lopes, 2017</span><span>
+</span><a name="line-4"></a><span class="hs-comment">-- License     : MIT</span><span>
+</span><a name="line-5"></a><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><a name="line-6"></a><span class="hs-comment">--</span><span>
+</span><a name="line-7"></a><span class="hs-comment">-- A SQL parser implementation of the minimum required for a ODBC driver.</span><span>
+</span><a name="line-8"></a><span class="hs-comment">--</span><span>
+</span><a name="line-9"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-10"></a><span class="hs-comment">--     </span><span>
+</span><a name="line-11"></a><span class="hs-comment">-- &gt; </span><span>
+</span><a name="line-12"></a><span class="hs-comment">-- &gt; character = ? any character ?;</span><span>
+</span><a name="line-13"></a><span class="hs-comment">-- &gt; </span><span>
+</span><a name="line-14"></a><span class="hs-comment">-- &gt; letter = lower-case-letter | upper-case-letter;</span><span>
+</span><a name="line-15"></a><span class="hs-comment">-- &gt; </span><span>
+</span><a name="line-16"></a><span class="hs-comment">-- &gt; lower-case-letter = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' </span><span>
+</span><a name="line-17"></a><span class="hs-comment">-- &gt;                   | 'k' | 'l' | 'm' | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' </span><span>
+</span><a name="line-18"></a><span class="hs-comment">-- &gt;                   | 'u' | 'v' | 'w' | 'x' | 'y' | 'z' ;</span><span>
+</span><a name="line-19"></a><span class="hs-comment">-- &gt; </span><span>
+</span><a name="line-20"></a><span class="hs-comment">-- &gt; upper-case-letter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' </span><span>
+</span><a name="line-21"></a><span class="hs-comment">-- &gt;                   | 'K' | 'L' | 'M' | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T'</span><span>
+</span><a name="line-22"></a><span class="hs-comment">-- &gt;                   | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z' ;</span><span>
+</span><a name="line-23"></a><span class="hs-comment">-- &gt; </span><span>
+</span><a name="line-24"></a><span class="hs-comment">-- &gt; digit = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' ;</span><span>
+</span><a name="line-25"></a><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Language</span><span class="hs-operator">.</span><span class="hs-identifier">Sql</span><span class="hs-operator">.</span><span class="hs-identifier">AST</span><span>
+</span><a name="line-26"></a><span class="hs-keyword">where</span><span>
+</span><a name="line-27"></a><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data</span><span class="hs-operator">.</span><span class="hs-identifier">List</span><span class="hs-operator">.</span><span class="hs-identifier">NonEmpty</span><span>
+</span><a name="line-28"></a><span>
+</span><a name="line-29"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-30"></a><span class="hs-comment">--</span><span>
+</span><a name="line-31"></a><span class="hs-comment">-- &gt; multiplication-operator = '*' | '/' ;</span><span>
+</span><a name="line-32"></a><span class="hs-keyword">data</span><span> </span><a name="MultiplicationOperator"><a href="Language.Sql.AST.html#MultiplicationOperator"><span class="hs-identifier">MultiplicationOperator</span></a></a><span>
+</span><a name="line-33"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="Multiply"><a href="Language.Sql.AST.html#Multiply"><span class="hs-identifier">Multiply</span></a></a><span>
+</span><a name="line-34"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="Divide"><a href="Language.Sql.AST.html#Divide"><span class="hs-identifier">Divide</span></a></a><span>
+</span><a name="line-35"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-36"></a><span>
+</span><a name="line-37"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-38"></a><span class="hs-comment">--</span><span>
+</span><a name="line-39"></a><span class="hs-comment">-- &gt; sign = '+' | '-' ;</span><span>
+</span><a name="line-40"></a><span class="hs-keyword">data</span><span> </span><a name="Sign"><a href="Language.Sql.AST.html#Sign"><span class="hs-identifier">Sign</span></a></a><span>
+</span><a name="line-41"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="Plus"><a href="Language.Sql.AST.html#Plus"><span class="hs-identifier">Plus</span></a></a><span>
+</span><a name="line-42"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="Minus"><a href="Language.Sql.AST.html#Minus"><span class="hs-identifier">Minus</span></a></a><span>
+</span><a name="line-43"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-44"></a><span>
+</span><a name="line-45"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-46"></a><span class="hs-comment">--</span><span>
+</span><a name="line-47"></a><span class="hs-comment">-- &gt; dynamic-parameter = '?' ;</span><span>
+</span><a name="line-48"></a><span class="hs-keyword">data</span><span> </span><a name="DynamicParameter"><a href="Language.Sql.AST.html#DynamicParameter"><span class="hs-identifier">DynamicParameter</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="DynamicParameter"><a href="Language.Sql.AST.html#DynamicParameter"><span class="hs-identifier">DynamicParameter</span></a></a><span>
+</span><a name="line-49"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-50"></a><span>
+</span><a name="line-51"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-52"></a><span class="hs-comment">--</span><span>
+</span><a name="line-53"></a><span class="hs-comment">-- &gt; comparison-operator = '&lt;' | '&gt;' | '&lt;=' | '&gt;=' | '=' | '&lt;&gt;' ;</span><span>
+</span><a name="line-54"></a><span class="hs-keyword">data</span><span> </span><a name="ComparisonOperator"><a href="Language.Sql.AST.html#ComparisonOperator"><span class="hs-identifier">ComparisonOperator</span></a></a><span>
+</span><a name="line-55"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="LessThan"><a href="Language.Sql.AST.html#LessThan"><span class="hs-identifier">LessThan</span></a></a><span>
+</span><a name="line-56"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="GreaterThan"><a href="Language.Sql.AST.html#GreaterThan"><span class="hs-identifier">GreaterThan</span></a></a><span>
+</span><a name="line-57"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="LessOrEqualTo"><a href="Language.Sql.AST.html#LessOrEqualTo"><span class="hs-identifier">LessOrEqualTo</span></a></a><span>
+</span><a name="line-58"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="GreaterOrEqualTo"><a href="Language.Sql.AST.html#GreaterOrEqualTo"><span class="hs-identifier">GreaterOrEqualTo</span></a></a><span>
+</span><a name="line-59"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="Equality"><a href="Language.Sql.AST.html#Equality"><span class="hs-identifier">Equality</span></a></a><span>
+</span><a name="line-60"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="Inequality"><a href="Language.Sql.AST.html#Inequality"><span class="hs-identifier">Inequality</span></a></a><span>
+</span><a name="line-61"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-62"></a><span>
+</span><a name="line-63"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-64"></a><span class="hs-comment">--</span><span>
+</span><a name="line-65"></a><span class="hs-comment">-- &gt; unsigned-integer = digit, { digit };</span><span>
+</span><a name="line-66"></a><span class="hs-keyword">newtype</span><span> </span><a name="UnsignedInteger"><a href="Language.Sql.AST.html#UnsignedInteger"><span class="hs-identifier">UnsignedInteger</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="UnsignedInteger"><a href="Language.Sql.AST.html#UnsignedInteger"><span class="hs-identifier">UnsignedInteger</span></a></a><span> </span><span class="hs-identifier hs-type">Int</span><span>
+</span><a name="line-67"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-68"></a><span>
+</span><a name="line-69"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-70"></a><span class="hs-comment">--</span><span>
+</span><a name="line-71"></a><span class="hs-comment">-- &gt; literal = &quot;'&quot;, { character - &quot;'&quot; | &quot;''&quot; }, &quot;'&quot;;</span><span>
+</span><a name="line-72"></a><span class="hs-keyword">newtype</span><span> </span><a name="Literal"><a href="Language.Sql.AST.html#Literal"><span class="hs-identifier">Literal</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Literal"><a href="Language.Sql.AST.html#Literal"><span class="hs-identifier">Literal</span></a></a><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-73"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-74"></a><span>
+</span><a name="line-75"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-76"></a><span class="hs-comment">--</span><span>
+</span><a name="line-77"></a><span class="hs-comment">-- &gt; user-defined-name = letter, { digit | letter | '_' };</span><span>
+</span><a name="line-78"></a><span class="hs-keyword">newtype</span><span> </span><a name="UserDefinedName"><a href="Language.Sql.AST.html#UserDefinedName"><span class="hs-identifier">UserDefinedName</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="UserDefinedName"><a href="Language.Sql.AST.html#UserDefinedName"><span class="hs-identifier">UserDefinedName</span></a></a><span> </span><span class="hs-identifier hs-type">String</span><span>
+</span><a name="line-79"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-80"></a><span>
+</span><a name="line-81"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-82"></a><span class="hs-comment">--</span><span>
+</span><a name="line-83"></a><span class="hs-comment">-- &gt; table-identifier = user-defined-name;</span><span>
+</span><a name="line-84"></a><span class="hs-keyword">newtype</span><span> </span><a name="TableIdentifier"><a href="Language.Sql.AST.html#TableIdentifier"><span class="hs-identifier">TableIdentifier</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="TableIdentifier"><a href="Language.Sql.AST.html#TableIdentifier"><span class="hs-identifier">TableIdentifier</span></a></a><span> </span><a href="Language.Sql.AST.html#UserDefinedName"><span class="hs-identifier hs-type">UserDefinedName</span></a><span>
+</span><a name="line-85"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-86"></a><span>
+</span><a name="line-87"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-88"></a><span class="hs-comment">--</span><span>
+</span><a name="line-89"></a><span class="hs-comment">-- &gt; base-table-identifier = user-defined-name;</span><span>
+</span><a name="line-90"></a><span class="hs-keyword">newtype</span><span> </span><a name="BaseTableIdentifier"><a href="Language.Sql.AST.html#BaseTableIdentifier"><span class="hs-identifier">BaseTableIdentifier</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="BaseTableIdentifier"><a href="Language.Sql.AST.html#BaseTableIdentifier"><span class="hs-identifier">BaseTableIdentifier</span></a></a><span> </span><a href="Language.Sql.AST.html#UserDefinedName"><span class="hs-identifier hs-type">UserDefinedName</span></a><span>
+</span><a name="line-91"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-92"></a><span>
+</span><a name="line-93"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-94"></a><span class="hs-comment">--</span><span>
+</span><a name="line-95"></a><span class="hs-comment">-- &gt; column-identifier = user-defined-name;</span><span>
+</span><a name="line-96"></a><span class="hs-keyword">newtype</span><span> </span><a name="ColumnIdentifier"><a href="Language.Sql.AST.html#ColumnIdentifier"><span class="hs-identifier">ColumnIdentifier</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="ColumnIdentifier"><a href="Language.Sql.AST.html#ColumnIdentifier"><span class="hs-identifier">ColumnIdentifier</span></a></a><span> </span><a href="Language.Sql.AST.html#UserDefinedName"><span class="hs-identifier hs-type">UserDefinedName</span></a><span>
+</span><a name="line-97"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-98"></a><span>
+</span><a name="line-99"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-100"></a><span class="hs-comment">--</span><span>
+</span><a name="line-101"></a><span class="hs-comment">-- &gt; table-name = table-identifier;</span><span>
+</span><a name="line-102"></a><span class="hs-keyword">newtype</span><span> </span><a name="TableName"><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier">TableName</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="TableName"><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier">TableName</span></a></a><span> </span><a href="Language.Sql.AST.html#TableIdentifier"><span class="hs-identifier hs-type">TableIdentifier</span></a><span>
+</span><a name="line-103"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-104"></a><span>
+</span><a name="line-105"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-106"></a><span class="hs-comment">--</span><span>
+</span><a name="line-107"></a><span class="hs-comment">-- &gt; column-name = [ table-name, '.' ], column-identifier;</span><span>
+</span><a name="line-108"></a><span class="hs-keyword">data</span><span> </span><a name="ColumnName"><a href="Language.Sql.AST.html#ColumnName"><span class="hs-identifier">ColumnName</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="ColumnName"><a href="Language.Sql.AST.html#ColumnName"><span class="hs-identifier">ColumnName</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier hs-type">TableName</span></a><span class="hs-special">)</span><span> </span><a href="Language.Sql.AST.html#ColumnIdentifier"><span class="hs-identifier hs-type">ColumnIdentifier</span></a><span>
+</span><a name="line-109"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-110"></a><span>
+</span><a name="line-111"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-112"></a><span class="hs-comment">--</span><span>
+</span><a name="line-113"></a><span class="hs-comment">-- &gt; base-table-name = base-table-identifier;</span><span>
+</span><a name="line-114"></a><span class="hs-keyword">newtype</span><span> </span><a name="BaseTableName"><a href="Language.Sql.AST.html#BaseTableName"><span class="hs-identifier">BaseTableName</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="BaseTableName"><a href="Language.Sql.AST.html#BaseTableName"><span class="hs-identifier">BaseTableName</span></a></a><span> </span><a href="Language.Sql.AST.html#BaseTableIdentifier"><span class="hs-identifier hs-type">BaseTableIdentifier</span></a><span>
+</span><a name="line-115"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-116"></a><span>
+</span><a name="line-117"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-118"></a><span class="hs-comment">--</span><span>
+</span><a name="line-119"></a><span class="hs-comment">-- &gt; table-reference = table-name;</span><span>
+</span><a name="line-120"></a><span class="hs-keyword">newtype</span><span> </span><a name="TableReference"><a href="Language.Sql.AST.html#TableReference"><span class="hs-identifier">TableReference</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="TableReference"><a href="Language.Sql.AST.html#TableReference"><span class="hs-identifier">TableReference</span></a></a><span> </span><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier hs-type">TableName</span></a><span>
+</span><a name="line-121"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-122"></a><span>
+</span><a name="line-123"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-124"></a><span class="hs-comment">--</span><span>
+</span><a name="line-125"></a><span class="hs-comment">-- &gt; table-reference-list = table-reference,  { ',', table-reference };    </span><span>
+</span><a name="line-126"></a><span class="hs-keyword">newtype</span><span> </span><a name="TableReferenceList"><a href="Language.Sql.AST.html#TableReferenceList"><span class="hs-identifier">TableReferenceList</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="TableReferenceList"><a href="Language.Sql.AST.html#TableReferenceList"><span class="hs-identifier">TableReferenceList</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#TableReference"><span class="hs-identifier hs-type">TableReference</span></a><span class="hs-special">)</span><span>
+</span><a name="line-127"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-128"></a><span>
+</span><a name="line-129"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-130"></a><span class="hs-comment">--</span><span>
+</span><a name="line-131"></a><span class="hs-comment">-- &gt; sort-ordering = 'ASC' | 'DESC' ;</span><span>
+</span><a name="line-132"></a><span class="hs-keyword">data</span><span> </span><a name="SortOrdering"><a href="Language.Sql.AST.html#SortOrdering"><span class="hs-identifier">SortOrdering</span></a></a><span>
+</span><a name="line-133"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="Ascending"><a href="Language.Sql.AST.html#Ascending"><span class="hs-identifier">Ascending</span></a></a><span>
+</span><a name="line-134"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="Descending"><a href="Language.Sql.AST.html#Descending"><span class="hs-identifier">Descending</span></a></a><span>
+</span><a name="line-135"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-136"></a><span>
+</span><a name="line-137"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-138"></a><span class="hs-comment">--</span><span>
+</span><a name="line-139"></a><span class="hs-comment">-- &gt; sort-specification = (unsigned-integer | column-name), [ sort-ordering ];</span><span>
+</span><a name="line-140"></a><span class="hs-keyword">data</span><span> </span><a name="SortSpecification"><a href="Language.Sql.AST.html#SortSpecification"><span class="hs-identifier">SortSpecification</span></a></a><span>
+</span><a name="line-141"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="SortByColumnPosition"><a href="Language.Sql.AST.html#SortByColumnPosition"><span class="hs-identifier">SortByColumnPosition</span></a></a><span> </span><a href="Language.Sql.AST.html#UnsignedInteger"><span class="hs-identifier hs-type">UnsignedInteger</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#SortOrdering"><span class="hs-identifier hs-type">SortOrdering</span></a><span class="hs-special">)</span><span>
+</span><a name="line-142"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="SortByColumnName"><a href="Language.Sql.AST.html#SortByColumnName"><span class="hs-identifier">SortByColumnName</span></a></a><span> </span><a href="Language.Sql.AST.html#ColumnName"><span class="hs-identifier hs-type">ColumnName</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#SortOrdering"><span class="hs-identifier hs-type">SortOrdering</span></a><span class="hs-special">)</span><span>
+</span><a name="line-143"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-144"></a><span>
+</span><a name="line-145"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-146"></a><span class="hs-comment">--</span><span>
+</span><a name="line-147"></a><span class="hs-comment">-- &gt; order-by-clause = 'ORDER', 'BY', sort-specification, { ',', sort-specification };</span><span>
+</span><a name="line-148"></a><span class="hs-keyword">newtype</span><span> </span><a name="OrderByClause"><a href="Language.Sql.AST.html#OrderByClause"><span class="hs-identifier">OrderByClause</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="OrderByClause"><a href="Language.Sql.AST.html#OrderByClause"><span class="hs-identifier">OrderByClause</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#SortSpecification"><span class="hs-identifier hs-type">SortSpecification</span></a><span class="hs-special">)</span><span>
+</span><a name="line-149"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-150"></a><span>
+</span><a name="line-151"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-152"></a><span class="hs-comment">--</span><span>
+</span><a name="line-153"></a><span class="hs-comment">-- &gt; data-type = 'char', '(', unsigned-integer, ')'</span><span>
+</span><a name="line-154"></a><span class="hs-comment">-- &gt;           | 'varchar', '(', unsigned-integer, ')'</span><span>
+</span><a name="line-155"></a><span class="hs-comment">-- &gt;           ;    </span><span>
+</span><a name="line-156"></a><span class="hs-keyword">data</span><span> </span><a name="DataType"><a href="Language.Sql.AST.html#DataType"><span class="hs-identifier">DataType</span></a></a><span>
+</span><a name="line-157"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="Char"><a href="Language.Sql.AST.html#Char"><span class="hs-identifier">Char</span></a></a><span> </span><a href="Language.Sql.AST.html#UnsignedInteger"><span class="hs-identifier hs-type">UnsignedInteger</span></a><span>
+</span><a name="line-158"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="VarChar"><a href="Language.Sql.AST.html#VarChar"><span class="hs-identifier">VarChar</span></a></a><span> </span><a href="Language.Sql.AST.html#UnsignedInteger"><span class="hs-identifier hs-type">UnsignedInteger</span></a><span>
+</span><a name="line-159"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-160"></a><span>
+</span><a name="line-161"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-162"></a><span class="hs-comment">--</span><span>
+</span><a name="line-163"></a><span class="hs-comment">-- &gt; expression = term, [ expression-op ];</span><span>
+</span><a name="line-164"></a><span class="hs-keyword">data</span><span> </span><a name="Expression"><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier">Expression</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Expression"><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier">Expression</span></a></a><span> </span><a href="Language.Sql.AST.html#Term"><span class="hs-identifier hs-type">Term</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#ExpressionOp"><span class="hs-identifier hs-type">ExpressionOp</span></a><span class="hs-special">)</span><span>
+</span><a name="line-165"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-166"></a><span>
+</span><a name="line-167"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-168"></a><span class="hs-comment">--</span><span>
+</span><a name="line-169"></a><span class="hs-comment">-- &gt; expression-op = sign, expression;</span><span>
+</span><a name="line-170"></a><span class="hs-keyword">data</span><span> </span><a name="ExpressionOp"><a href="Language.Sql.AST.html#ExpressionOp"><span class="hs-identifier">ExpressionOp</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="ExpressionOp"><a href="Language.Sql.AST.html#ExpressionOp"><span class="hs-identifier">ExpressionOp</span></a></a><span> </span><a href="Language.Sql.AST.html#Sign"><span class="hs-identifier hs-type">Sign</span></a><span> </span><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier hs-type">Expression</span></a><span>
+</span><a name="line-171"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-172"></a><span>
+</span><a name="line-173"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-174"></a><span class="hs-comment">--</span><span>
+</span><a name="line-175"></a><span class="hs-comment">-- &gt; factor = [ sign ], primary;</span><span>
+</span><a name="line-176"></a><span class="hs-keyword">data</span><span> </span><a name="Factor"><a href="Language.Sql.AST.html#Factor"><span class="hs-identifier">Factor</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Factor"><a href="Language.Sql.AST.html#Factor"><span class="hs-identifier">Factor</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#Sign"><span class="hs-identifier hs-type">Sign</span></a><span class="hs-special">)</span><span> </span><a href="Language.Sql.AST.html#Primary"><span class="hs-identifier hs-type">Primary</span></a><span>
+</span><a name="line-177"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>    </span><span>
+</span><a name="line-178"></a><span>
+</span><a name="line-179"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-180"></a><span class="hs-comment">--</span><span>
+</span><a name="line-181"></a><span class="hs-comment">-- &gt; term = factor, [ term-op ]</span><span>
+</span><a name="line-182"></a><span class="hs-keyword">data</span><span> </span><a name="Term"><a href="Language.Sql.AST.html#Term"><span class="hs-identifier">Term</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Term"><a href="Language.Sql.AST.html#Term"><span class="hs-identifier">Term</span></a></a><span> </span><a href="Language.Sql.AST.html#Factor"><span class="hs-identifier hs-type">Factor</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#TermOp"><span class="hs-identifier hs-type">TermOp</span></a><span class="hs-special">)</span><span>
+</span><a name="line-183"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-184"></a><span>
+</span><a name="line-185"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-186"></a><span class="hs-comment">--</span><span>
+</span><a name="line-187"></a><span class="hs-comment">-- &gt; term-op = multiplication-operator, term</span><span>
+</span><a name="line-188"></a><span class="hs-keyword">data</span><span> </span><a name="TermOp"><a href="Language.Sql.AST.html#TermOp"><span class="hs-identifier">TermOp</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="TermOp"><a href="Language.Sql.AST.html#TermOp"><span class="hs-identifier">TermOp</span></a></a><span> </span><a href="Language.Sql.AST.html#MultiplicationOperator"><span class="hs-identifier hs-type">MultiplicationOperator</span></a><span> </span><a href="Language.Sql.AST.html#Term"><span class="hs-identifier hs-type">Term</span></a><span>
+</span><a name="line-189"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-190"></a><span>
+</span><a name="line-191"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-192"></a><span class="hs-comment">--</span><span>
+</span><a name="line-193"></a><span class="hs-comment">-- &gt; primary = column-name | dynamic-parameter | literal | '(', expression, ')';    </span><span>
+</span><a name="line-194"></a><span class="hs-keyword">data</span><span> </span><a name="Primary"><a href="Language.Sql.AST.html#Primary"><span class="hs-identifier">Primary</span></a></a><span>
+</span><a name="line-195"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="PrimaryColumnName"><a href="Language.Sql.AST.html#PrimaryColumnName"><span class="hs-identifier">PrimaryColumnName</span></a></a><span> </span><a href="Language.Sql.AST.html#ColumnName"><span class="hs-identifier hs-type">ColumnName</span></a><span>
+</span><a name="line-196"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="PrimaryDynamicParameter"><a href="Language.Sql.AST.html#PrimaryDynamicParameter"><span class="hs-identifier">PrimaryDynamicParameter</span></a></a><span> </span><a href="Language.Sql.AST.html#DynamicParameter"><span class="hs-identifier hs-type">DynamicParameter</span></a><span>
+</span><a name="line-197"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="PrimaryLiteral"><a href="Language.Sql.AST.html#PrimaryLiteral"><span class="hs-identifier">PrimaryLiteral</span></a></a><span> </span><a href="Language.Sql.AST.html#Literal"><span class="hs-identifier hs-type">Literal</span></a><span>
+</span><a name="line-198"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="PrimaryExpression"><a href="Language.Sql.AST.html#PrimaryExpression"><span class="hs-identifier">PrimaryExpression</span></a></a><span> </span><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier hs-type">Expression</span></a><span>
+</span><a name="line-199"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-200"></a><span>
+</span><a name="line-201"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-202"></a><span class="hs-comment">--</span><span>
+</span><a name="line-203"></a><span class="hs-comment">-- &gt; select-sublist = expression;</span><span>
+</span><a name="line-204"></a><span class="hs-keyword">newtype</span><span> </span><a name="SelectSubList"><a href="Language.Sql.AST.html#SelectSubList"><span class="hs-identifier">SelectSubList</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="SelectSubList"><a href="Language.Sql.AST.html#SelectSubList"><span class="hs-identifier">SelectSubList</span></a></a><span> </span><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier hs-type">Expression</span></a><span>
+</span><a name="line-205"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-206"></a><span>
+</span><a name="line-207"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-208"></a><span class="hs-comment">--</span><span>
+</span><a name="line-209"></a><span class="hs-comment">-- &gt; (* select-list cannot contain parameters *)</span><span>
+</span><a name="line-210"></a><span class="hs-comment">-- &gt; select-list = '*'</span><span>
+</span><a name="line-211"></a><span class="hs-comment">-- &gt;             | select-sublist, { ',', select-sublist }</span><span>
+</span><a name="line-212"></a><span class="hs-comment">-- &gt;             ;</span><span>
+</span><a name="line-213"></a><span class="hs-keyword">data</span><span> </span><a name="SelectList"><a href="Language.Sql.AST.html#SelectList"><span class="hs-identifier">SelectList</span></a></a><span>
+</span><a name="line-214"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="SelectAll"><a href="Language.Sql.AST.html#SelectAll"><span class="hs-identifier">SelectAll</span></a></a><span>
+</span><a name="line-215"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="SelectList"><a href="Language.Sql.AST.html#SelectList"><span class="hs-identifier">SelectList</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#SelectSubList"><span class="hs-identifier hs-type">SelectSubList</span></a><span class="hs-special">)</span><span>
+</span><a name="line-216"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-217"></a><span>
+</span><a name="line-218"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-219"></a><span class="hs-comment">--</span><span>
+</span><a name="line-220"></a><span class="hs-comment">-- &gt; insert-value = dynamic-parameter | literal | 'NULL' | 'USER' ;</span><span>
+</span><a name="line-221"></a><span class="hs-keyword">data</span><span> </span><a name="InsertValue"><a href="Language.Sql.AST.html#InsertValue"><span class="hs-identifier">InsertValue</span></a></a><span>
+</span><a name="line-222"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="InsertDynamicParameter"><a href="Language.Sql.AST.html#InsertDynamicParameter"><span class="hs-identifier">InsertDynamicParameter</span></a></a><span> </span><a href="Language.Sql.AST.html#DynamicParameter"><span class="hs-identifier hs-type">DynamicParameter</span></a><span>
+</span><a name="line-223"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="InsertLiteral"><a href="Language.Sql.AST.html#InsertLiteral"><span class="hs-identifier">InsertLiteral</span></a></a><span> </span><a href="Language.Sql.AST.html#Literal"><span class="hs-identifier hs-type">Literal</span></a><span>
+</span><a name="line-224"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="InsertNull"><a href="Language.Sql.AST.html#InsertNull"><span class="hs-identifier">InsertNull</span></a></a><span>
+</span><a name="line-225"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="InsertUser"><a href="Language.Sql.AST.html#InsertUser"><span class="hs-identifier">InsertUser</span></a></a><span>
+</span><a name="line-226"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-227"></a><span>
+</span><a name="line-228"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-229"></a><span class="hs-comment">--</span><span>
+</span><a name="line-230"></a><span class="hs-comment">-- &gt; comparison-predicate = expression, comparison-operator, expression;</span><span>
+</span><a name="line-231"></a><span class="hs-keyword">data</span><span> </span><a name="ComparisonPredicate"><a href="Language.Sql.AST.html#ComparisonPredicate"><span class="hs-identifier">ComparisonPredicate</span></a></a><span>
+</span><a name="line-232"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="ComparisonPredicate"><a href="Language.Sql.AST.html#ComparisonPredicate"><span class="hs-identifier">ComparisonPredicate</span></a></a><span> </span><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier hs-type">Expression</span></a><span> </span><a href="Language.Sql.AST.html#ComparisonOperator"><span class="hs-identifier hs-type">ComparisonOperator</span></a><span> </span><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier hs-type">Expression</span></a><span>
+</span><a name="line-233"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-234"></a><span>
+</span><a name="line-235"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-236"></a><span class="hs-comment">--</span><span>
+</span><a name="line-237"></a><span class="hs-comment">-- &gt; not = 'not';</span><span>
+</span><a name="line-238"></a><span class="hs-keyword">data</span><span> </span><a name="Not"><a href="Language.Sql.AST.html#Not"><span class="hs-identifier">Not</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Not"><a href="Language.Sql.AST.html#Not"><span class="hs-identifier">Not</span></a></a><span>
+</span><a name="line-239"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-240"></a><span>
+</span><a name="line-241"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-242"></a><span class="hs-comment">--</span><span>
+</span><a name="line-243"></a><span class="hs-comment">-- &gt; boolean-factor = [ not ], boolean-primary;</span><span>
+</span><a name="line-244"></a><span class="hs-keyword">data</span><span> </span><a name="BooleanFactor"><a href="Language.Sql.AST.html#BooleanFactor"><span class="hs-identifier">BooleanFactor</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="BooleanFactor"><a href="Language.Sql.AST.html#BooleanFactor"><span class="hs-identifier">BooleanFactor</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#Not"><span class="hs-identifier hs-type">Not</span></a><span class="hs-special">)</span><span> </span><a href="Language.Sql.AST.html#BooleanPrimary"><span class="hs-identifier hs-type">BooleanPrimary</span></a><span>
+</span><a name="line-245"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-246"></a><span>
+</span><a name="line-247"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-248"></a><span class="hs-comment">--</span><span>
+</span><a name="line-249"></a><span class="hs-comment">-- &gt; boolean-primary = comparison-predicate</span><span>
+</span><a name="line-250"></a><span class="hs-comment">-- &gt;                 | '(', search-condition, ')'</span><span>
+</span><a name="line-251"></a><span class="hs-comment">-- &gt;                 ;</span><span>
+</span><a name="line-252"></a><span class="hs-keyword">data</span><span> </span><a name="BooleanPrimary"><a href="Language.Sql.AST.html#BooleanPrimary"><span class="hs-identifier">BooleanPrimary</span></a></a><span>
+</span><a name="line-253"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="BooleanPrimaryComparison"><a href="Language.Sql.AST.html#BooleanPrimaryComparison"><span class="hs-identifier">BooleanPrimaryComparison</span></a></a><span> </span><a href="Language.Sql.AST.html#ComparisonPredicate"><span class="hs-identifier hs-type">ComparisonPredicate</span></a><span>
+</span><a name="line-254"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="BooleanPrimarySearch"><a href="Language.Sql.AST.html#BooleanPrimarySearch"><span class="hs-identifier">BooleanPrimarySearch</span></a></a><span> </span><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier hs-type">SearchCondition</span></a><span>
+</span><a name="line-255"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-256"></a><span>
+</span><a name="line-257"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-258"></a><span class="hs-comment">--</span><span>
+</span><a name="line-259"></a><span class="hs-comment">-- &gt; boolean-and = 'and', boolean-term;</span><span>
+</span><a name="line-260"></a><span class="hs-keyword">data</span><span> </span><a name="BooleanAnd"><a href="Language.Sql.AST.html#BooleanAnd"><span class="hs-identifier">BooleanAnd</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="BooleanAnd"><a href="Language.Sql.AST.html#BooleanAnd"><span class="hs-identifier">BooleanAnd</span></a></a><span> </span><a href="Language.Sql.AST.html#BooleanTerm"><span class="hs-identifier hs-type">BooleanTerm</span></a><span>
+</span><a name="line-261"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-262"></a><span>
+</span><a name="line-263"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-264"></a><span class="hs-comment">--</span><span>
+</span><a name="line-265"></a><span class="hs-comment">-- &gt; boolean-term = boolean-factor, [ boolean-and ];</span><span>
+</span><a name="line-266"></a><span class="hs-keyword">data</span><span> </span><a name="BooleanTerm"><a href="Language.Sql.AST.html#BooleanTerm"><span class="hs-identifier">BooleanTerm</span></a></a><span>
+</span><a name="line-267"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="BooleanTerm"><a href="Language.Sql.AST.html#BooleanTerm"><span class="hs-identifier">BooleanTerm</span></a></a><span> </span><a href="Language.Sql.AST.html#BooleanFactor"><span class="hs-identifier hs-type">BooleanFactor</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#BooleanAnd"><span class="hs-identifier hs-type">BooleanAnd</span></a><span class="hs-special">)</span><span>
+</span><a name="line-268"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-269"></a><span>
+</span><a name="line-270"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-271"></a><span class="hs-comment">--</span><span>
+</span><a name="line-272"></a><span class="hs-comment">-- &gt; boolean-or = 'or', search-condition;</span><span>
+</span><a name="line-273"></a><span class="hs-keyword">data</span><span> </span><a name="BooleanOr"><a href="Language.Sql.AST.html#BooleanOr"><span class="hs-identifier">BooleanOr</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="BooleanOr"><a href="Language.Sql.AST.html#BooleanOr"><span class="hs-identifier">BooleanOr</span></a></a><span> </span><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier hs-type">SearchCondition</span></a><span>
+</span><a name="line-274"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-275"></a><span>
+</span><a name="line-276"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-277"></a><span class="hs-comment">--</span><span>
+</span><a name="line-278"></a><span class="hs-comment">-- &gt; search-condition = boolean-term, [ boolean-or ];</span><span>
+</span><a name="line-279"></a><span class="hs-keyword">data</span><span> </span><a name="SearchCondition"><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier">SearchCondition</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="SearchCondition"><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier">SearchCondition</span></a></a><span> </span><a href="Language.Sql.AST.html#BooleanTerm"><span class="hs-identifier hs-type">BooleanTerm</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#BooleanOr"><span class="hs-identifier hs-type">BooleanOr</span></a><span class="hs-special">)</span><span>
+</span><a name="line-280"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-281"></a><span>
+</span><a name="line-282"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-283"></a><span class="hs-comment">--</span><span>
+</span><a name="line-284"></a><span class="hs-comment">-- &gt; distinct = 'DISTINCT';</span><span>
+</span><a name="line-285"></a><span class="hs-keyword">data</span><span> </span><a name="Distinct"><a href="Language.Sql.AST.html#Distinct"><span class="hs-identifier">Distinct</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Distinct"><a href="Language.Sql.AST.html#Distinct"><span class="hs-identifier">Distinct</span></a></a><span>
+</span><a name="line-286"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-287"></a><span>
+</span><a name="line-288"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-289"></a><span class="hs-comment">--</span><span>
+</span><a name="line-290"></a><span class="hs-comment">-- &gt; column-and-type = column-identifier, data-type;</span><span>
+</span><a name="line-291"></a><span class="hs-keyword">data</span><span> </span><a name="ColumnAndType"><a href="Language.Sql.AST.html#ColumnAndType"><span class="hs-identifier">ColumnAndType</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="ColumnAndType"><a href="Language.Sql.AST.html#ColumnAndType"><span class="hs-identifier">ColumnAndType</span></a></a><span> </span><a href="Language.Sql.AST.html#ColumnIdentifier"><span class="hs-identifier hs-type">ColumnIdentifier</span></a><span> </span><a href="Language.Sql.AST.html#DataType"><span class="hs-identifier hs-type">DataType</span></a><span>
+</span><a name="line-292"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-293"></a><span>
+</span><a name="line-294"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-295"></a><span class="hs-comment">--</span><span>
+</span><a name="line-296"></a><span class="hs-comment">-- &gt; create-table-statement = 'CREATE', 'TABLE', base-table-name, '(',</span><span>
+</span><a name="line-297"></a><span class="hs-comment">-- &gt;                              column-and-type, { ',', column-and-type }</span><span>
+</span><a name="line-298"></a><span class="hs-comment">-- &gt;                          ')'</span><span>
+</span><a name="line-299"></a><span class="hs-keyword">data</span><span> </span><a name="CreateTable"><a href="Language.Sql.AST.html#CreateTable"><span class="hs-identifier">CreateTable</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="CreateTable"><a href="Language.Sql.AST.html#CreateTable"><span class="hs-identifier">CreateTable</span></a></a><span> </span><a href="Language.Sql.AST.html#BaseTableName"><span class="hs-identifier hs-type">BaseTableName</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#ColumnAndType"><span class="hs-identifier hs-type">ColumnAndType</span></a><span class="hs-special">)</span><span>
+</span><a name="line-300"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-301"></a><span>
+</span><a name="line-302"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-303"></a><span class="hs-comment">--</span><span>
+</span><a name="line-304"></a><span class="hs-comment">-- &gt; drop-table-statement = 'DROP', 'TABLE', base-table-name;</span><span>
+</span><a name="line-305"></a><span class="hs-keyword">data</span><span> </span><a name="Drop"><a href="Language.Sql.AST.html#Drop"><span class="hs-identifier">Drop</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Drop"><a href="Language.Sql.AST.html#Drop"><span class="hs-identifier">Drop</span></a></a><span> </span><a href="Language.Sql.AST.html#BaseTableName"><span class="hs-identifier hs-type">BaseTableName</span></a><span>
+</span><a name="line-306"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-307"></a><span>
+</span><a name="line-308"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-309"></a><span class="hs-comment">--</span><span>
+</span><a name="line-310"></a><span class="hs-comment">-- &gt; select-statement = 'SELECT', [ distinct ], select-list,</span><span>
+</span><a name="line-311"></a><span class="hs-comment">-- &gt;                    'FROM' table-reference-list,</span><span>
+</span><a name="line-312"></a><span class="hs-comment">-- &gt;                    ['WHERE' search-condition],</span><span>
+</span><a name="line-313"></a><span class="hs-comment">-- &gt;                    [order-by-clause];</span><span>
+</span><a name="line-314"></a><span class="hs-keyword">data</span><span> </span><a name="Select"><a href="Language.Sql.AST.html#Select"><span class="hs-identifier">Select</span></a></a><span>
+</span><a name="line-315"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="Select"><a href="Language.Sql.AST.html#Select"><span class="hs-identifier">Select</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#Distinct"><span class="hs-identifier hs-type">Distinct</span></a><span class="hs-special">)</span><span> </span><a href="Language.Sql.AST.html#SelectList"><span class="hs-identifier hs-type">SelectList</span></a><span>
+</span><a name="line-316"></a><span>      </span><a href="Language.Sql.AST.html#TableReferenceList"><span class="hs-identifier hs-type">TableReferenceList</span></a><span> </span><span>
+</span><a name="line-317"></a><span>      </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier hs-type">SearchCondition</span></a><span class="hs-special">)</span><span>
+</span><a name="line-318"></a><span>      </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#OrderByClause"><span class="hs-identifier hs-type">OrderByClause</span></a><span class="hs-special">)</span><span>
+</span><a name="line-319"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-320"></a><span>
+</span><a name="line-321"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-322"></a><span class="hs-comment">--</span><span>
+</span><a name="line-323"></a><span class="hs-comment">-- &gt; delete-statement-searched = 'DELETE', 'FROM', table-name</span><span>
+</span><a name="line-324"></a><span class="hs-comment">-- &gt;                           , [ 'WHERE', search-condition ];</span><span>
+</span><a name="line-325"></a><span class="hs-keyword">data</span><span> </span><a name="Delete"><a href="Language.Sql.AST.html#Delete"><span class="hs-identifier">Delete</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Delete"><a href="Language.Sql.AST.html#Delete"><span class="hs-identifier">Delete</span></a></a><span> </span><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier hs-type">TableName</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier hs-type">SearchCondition</span></a><span class="hs-special">)</span><span>
+</span><a name="line-326"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-327"></a><span>
+</span><a name="line-328"></a><span class="hs-comment">-- | Type alias for:</span><span>
+</span><a name="line-329"></a><span class="hs-comment">--   /EBNF:/</span><span>
+</span><a name="line-330"></a><span class="hs-comment">-- </span><span>
+</span><a name="line-331"></a><span class="hs-comment">-- &gt; column-identifier, { ',', column-identifier }</span><span>
+</span><a name="line-332"></a><span class="hs-keyword">type</span><span> </span><a name="ColumnIdList"><a href="Language.Sql.AST.html#ColumnIdList"><span class="hs-identifier">ColumnIdList</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#ColumnIdentifier"><span class="hs-identifier hs-type">ColumnIdentifier</span></a><span>
+</span><a name="line-333"></a><span>
+</span><a name="line-334"></a><span class="hs-comment">-- | Type alias for:</span><span>
+</span><a name="line-335"></a><span class="hs-comment">--   /EBNF:/</span><span>
+</span><a name="line-336"></a><span class="hs-comment">-- </span><span>
+</span><a name="line-337"></a><span class="hs-comment">-- &gt; insert-value, { ',', insert-value }</span><span>
+</span><a name="line-338"></a><span class="hs-keyword">type</span><span> </span><a name="InsertValueList"><a href="Language.Sql.AST.html#InsertValueList"><span class="hs-identifier">InsertValueList</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#InsertValue"><span class="hs-identifier hs-type">InsertValue</span></a><span>
+</span><a name="line-339"></a><span>
+</span><a name="line-340"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-341"></a><span class="hs-comment">--</span><span>
+</span><a name="line-342"></a><span class="hs-comment">-- &gt; insert-statement = 'INSERT', 'INTO', table-name</span><span>
+</span><a name="line-343"></a><span class="hs-comment">-- &gt;                  , [ '(', column-identifier, { ',', column-identifier } , ')' ],</span><span>
+</span><a name="line-344"></a><span class="hs-comment">-- &gt;                  , 'VALUES', '(', insert-value, { ',', insert-value } ')'</span><span>
+</span><a name="line-345"></a><span class="hs-keyword">data</span><span> </span><a name="Insert"><a href="Language.Sql.AST.html#Insert"><span class="hs-identifier">Insert</span></a></a><span>
+</span><a name="line-346"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="Insert"><a href="Language.Sql.AST.html#Insert"><span class="hs-identifier">Insert</span></a></a><span> </span><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier hs-type">TableName</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#ColumnIdList"><span class="hs-identifier hs-type">ColumnIdList</span></a><span class="hs-special">)</span><span> </span><a href="Language.Sql.AST.html#InsertValueList"><span class="hs-identifier hs-type">InsertValueList</span></a><span>
+</span><a name="line-347"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-348"></a><span>
+</span><a name="line-349"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-350"></a><span class="hs-comment">--</span><span>
+</span><a name="line-351"></a><span class="hs-comment">-- &gt; update-value = expression | 'NULL';</span><span>
+</span><a name="line-352"></a><span class="hs-keyword">data</span><span> </span><a name="UpdateValue"><a href="Language.Sql.AST.html#UpdateValue"><span class="hs-identifier">UpdateValue</span></a></a><span>
+</span><a name="line-353"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="UpdateValueExpression"><a href="Language.Sql.AST.html#UpdateValueExpression"><span class="hs-identifier">UpdateValueExpression</span></a></a><span> </span><a href="Language.Sql.AST.html#Expression"><span class="hs-identifier hs-type">Expression</span></a><span>
+</span><a name="line-354"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="UpdateValueNull"><a href="Language.Sql.AST.html#UpdateValueNull"><span class="hs-identifier">UpdateValueNull</span></a></a><span>
+</span><a name="line-355"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-356"></a><span>
+</span><a name="line-357"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-358"></a><span class="hs-comment">--</span><span>
+</span><a name="line-359"></a><span class="hs-comment">-- &gt; update-column = column-identifier, '=', update-value;</span><span>
+</span><a name="line-360"></a><span class="hs-keyword">data</span><span> </span><a name="UpdateColumn"><a href="Language.Sql.AST.html#UpdateColumn"><span class="hs-identifier">UpdateColumn</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="UpdateColumn"><a href="Language.Sql.AST.html#UpdateColumn"><span class="hs-identifier">UpdateColumn</span></a></a><span> </span><a href="Language.Sql.AST.html#ColumnIdentifier"><span class="hs-identifier hs-type">ColumnIdentifier</span></a><span> </span><a href="Language.Sql.AST.html#UpdateValue"><span class="hs-identifier hs-type">UpdateValue</span></a><span>
+</span><a name="line-361"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-362"></a><span>
+</span><a name="line-363"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-364"></a><span class="hs-comment">--</span><span>
+</span><a name="line-365"></a><span class="hs-comment">-- &gt; update-column-list = update-column, { ',', update-column };</span><span>
+</span><a name="line-366"></a><span class="hs-keyword">type</span><span> </span><a name="UpdateColumnList"><a href="Language.Sql.AST.html#UpdateColumnList"><span class="hs-identifier">UpdateColumnList</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#UpdateColumn"><span class="hs-identifier hs-type">UpdateColumn</span></a><span>
+</span><a name="line-367"></a><span>
+</span><a name="line-368"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-369"></a><span class="hs-comment">--</span><span>
+</span><a name="line-370"></a><span class="hs-comment">-- &gt; update-statement-searched = 'UPDATE', table-name</span><span>
+</span><a name="line-371"></a><span class="hs-comment">-- &gt;                           , 'SET', update-column-list</span><span>
+</span><a name="line-372"></a><span class="hs-comment">-- &gt;                           , [ 'WHERE', search-condition ]</span><span>
+</span><a name="line-373"></a><span class="hs-comment">-- &gt;                           ;</span><span>
+</span><a name="line-374"></a><span class="hs-keyword">data</span><span> </span><a name="Update"><a href="Language.Sql.AST.html#Update"><span class="hs-identifier">Update</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="Update"><a href="Language.Sql.AST.html#Update"><span class="hs-identifier">Update</span></a></a><span> </span><a href="Language.Sql.AST.html#TableName"><span class="hs-identifier hs-type">TableName</span></a><span> </span><a href="Language.Sql.AST.html#UpdateColumnList"><span class="hs-identifier hs-type">UpdateColumnList</span></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">Maybe</span><span> </span><a href="Language.Sql.AST.html#SearchCondition"><span class="hs-identifier hs-type">SearchCondition</span></a><span class="hs-special">)</span><span>
+</span><a name="line-375"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-376"></a><span>
+</span><a name="line-377"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-378"></a><span class="hs-comment">--</span><span>
+</span><a name="line-379"></a><span class="hs-comment">-- &gt; statement = create-table-statement</span><span>
+</span><a name="line-380"></a><span class="hs-comment">-- &gt;           | delete-statement-searched</span><span>
+</span><a name="line-381"></a><span class="hs-comment">-- &gt;           | drop-table-statement</span><span>
+</span><a name="line-382"></a><span class="hs-comment">-- &gt;           | insert-statement</span><span>
+</span><a name="line-383"></a><span class="hs-comment">-- &gt;           | select-statement</span><span>
+</span><a name="line-384"></a><span class="hs-comment">-- &gt;           | update-statement-searched</span><span>
+</span><a name="line-385"></a><span class="hs-comment">-- &gt;           ;</span><span>
+</span><a name="line-386"></a><span class="hs-keyword">data</span><span> </span><a name="Statement"><a href="Language.Sql.AST.html#Statement"><span class="hs-identifier">Statement</span></a></a><span>
+</span><a name="line-387"></a><span>    </span><span class="hs-glyph">=</span><span> </span><a name="CreateStatement"><a href="Language.Sql.AST.html#CreateStatement"><span class="hs-identifier">CreateStatement</span></a></a><span> </span><a href="Language.Sql.AST.html#CreateTable"><span class="hs-identifier hs-type">CreateTable</span></a><span>
+</span><a name="line-388"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="DeleteStatement"><a href="Language.Sql.AST.html#DeleteStatement"><span class="hs-identifier">DeleteStatement</span></a></a><span> </span><a href="Language.Sql.AST.html#Delete"><span class="hs-identifier hs-type">Delete</span></a><span>
+</span><a name="line-389"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="DropStatement"><a href="Language.Sql.AST.html#DropStatement"><span class="hs-identifier">DropStatement</span></a></a><span> </span><a href="Language.Sql.AST.html#Drop"><span class="hs-identifier hs-type">Drop</span></a><span>
+</span><a name="line-390"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="InsertStatement"><a href="Language.Sql.AST.html#InsertStatement"><span class="hs-identifier">InsertStatement</span></a></a><span> </span><a href="Language.Sql.AST.html#Insert"><span class="hs-identifier hs-type">Insert</span></a><span>
+</span><a name="line-391"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="SelectStatement"><a href="Language.Sql.AST.html#SelectStatement"><span class="hs-identifier">SelectStatement</span></a></a><span> </span><a href="Language.Sql.AST.html#Select"><span class="hs-identifier hs-type">Select</span></a><span>
+</span><a name="line-392"></a><span>    </span><span class="hs-glyph">|</span><span> </span><a name="UpdateStatement"><a href="Language.Sql.AST.html#UpdateStatement"><span class="hs-identifier">UpdateStatement</span></a></a><span> </span><a href="Language.Sql.AST.html#Update"><span class="hs-identifier hs-type">Update</span></a><span>
+</span><a name="line-393"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span><span>
+</span><a name="line-394"></a><span>
+</span><a name="line-395"></a><span class="hs-comment">-- | /EBNF:/</span><span>
+</span><a name="line-396"></a><span class="hs-comment">--</span><span>
+</span><a name="line-397"></a><span class="hs-comment">-- &gt; statement-list = statenment, { ';', statement };</span><span>
+</span><a name="line-398"></a><span class="hs-keyword">newtype</span><span> </span><a name="StatementList"><a href="Language.Sql.AST.html#StatementList"><span class="hs-identifier">StatementList</span></a></a><span> </span><span class="hs-glyph">=</span><span> </span><a name="StatementList"><a href="Language.Sql.AST.html#StatementList"><span class="hs-identifier">StatementList</span></a></a><span> </span><span class="hs-special">(</span><span class="hs-identifier hs-type">NonEmpty</span><span> </span><a href="Language.Sql.AST.html#Statement"><span class="hs-identifier hs-type">Statement</span></a><span class="hs-special">)</span><span>
+</span><a name="line-399"></a><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-identifier hs-type">Show</span></pre></body></html>
